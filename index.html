@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>陸行鳥大逃亡</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #333;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none; /* 防止手機瀏覽器滑動重整 */
+            user-select: none; /* 防止長按反白文字 */
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .screen {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 30px 50px;
+            border-radius: 15px;
+            text-align: center;
+            color: white;
+            border: 4px solid #fff;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            pointer-events: auto;
+            display: none;
+            max-width: 80%;
+        }
+        h1 { margin: 0 0 10px 0; color: #FFEB3B; font-size: 32px; text-shadow: 2px 2px 0 #000; }
+        p { margin: 10px 0; font-size: 16px; line-height: 1.5; }
+        .btn {
+            margin-top: 20px;
+            padding: 12px 30px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            background: #FFEB3B;
+            border: 3px solid #000;
+            border-radius: 8px;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.95); }
+        #status-bar {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: flex-end;
+            z-index: 10;
+        }
+        .hearts, .eggs {
+            display: flex;
+            gap: 10px;
+        }
+        .heart {
+            width: 30px;
+            height: 30px;
+            background: #F44336;
+            clip-path: polygon(50% 15%, 61% 0%, 100% 0%, 100% 35%, 50% 100%, 0% 35%, 0% 0%, 39% 0%);
+            border: 2px solid #000;
+        }
+        .heart.half { background: linear-gradient(to right, #F44336 50%, #555 50%); }
+        .heart.empty { background: #555; }
+        .egg-icon {
+            width: 24px;
+            height: 32px;
+            background-color: #FFF;
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            border: 2px solid #000;
+            box-shadow: inset -5px -5px 0 rgba(0,0,0,0.2);
+            opacity: 0.3;
+        }
+        .egg-icon.collected { opacity: 1; background-color: #FFF9C4; }
+        .blink-text {
+            animation: blinker 1s linear infinite;
+            color: #FFEB3B;
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 25px;
+            cursor: pointer;
+        }
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+
+        /* 手機虛擬方向鍵設定 */
+        #mobile-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 20px;
+            display: none; /* 遊戲開始時才顯示 */
+            gap: 20px;
+            z-index: 10;
+        }
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.3);
+            border: 3px solid rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 30px;
+            font-weight: bold;
+            user-select: none;
+            /* 支援觸控與滑鼠點擊的反饋 */
+            transition: background 0.1s;
+        }
+        .control-btn:active, .control-btn.active {
+            background: rgba(255, 255, 255, 0.7);
+            color: #333;
+        }
+        
+        /* 避免螢幕過小時字體太大溢出 */
+        @media (max-width: 600px) {
+            .screen { padding: 20px 20px; }
+            h1 { font-size: 24px; }
+            p { font-size: 14px; }
+            .heart { width: 20px; height: 20px; }
+            .egg-icon { width: 18px; height: 24px; }
+            #mobile-controls { bottom: 20px; left: 10px; gap: 10px; }
+            .control-btn { width: 50px; height: 50px; font-size: 24px; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="status-bar">
+        <div class="hearts">
+            <div class="heart" id="h1"></div>
+            <div class="heart" id="h2"></div>
+            <div class="heart" id="h3"></div>
+        </div>
+        <div class="eggs">
+            <div class="egg-icon" id="e1"></div>
+            <div class="egg-icon" id="e2"></div>
+            <div class="egg-icon" id="e3"></div>
+        </div>
+    </div>
+
+    <!-- 虛擬方向鍵 -->
+    <div id="mobile-controls">
+        <div class="control-btn" id="btn-left">◀</div>
+        <div class="control-btn" id="btn-right">▶</div>
+    </div>
+
+    <div id="ui-layer">
+        <!-- 開始畫面 -->
+        <div id="start-screen" class="screen" style="display: block;">
+            <h1>陸行鳥大逃亡</h1>
+            <p>巨大的暴龍正在追你！<br>
+               收集 <span style="color:#FFEB3B; font-weight:bold;">3 顆鳥蛋</span>，展翅高飛逃離這裡！</p>
+            <p style="color:#FFA07A; font-size:16px;">
+               操作：點擊畫面 或 按下 [空白鍵] 跳躍<br>
+               (支援二段跳以越過高牆或大裂縫)<br>
+               <span style="color:#81D4FA">新增：使用 [方向鍵] 進行前後移動閃避！</span><br>
+               <span style="color:#FFD54F">技巧：在空中連打跳躍鍵可以振翅浮空一下下！</span>
+            </p>
+            <p style="color:#FFF; font-size:14px; text-align:left;">
+               ⚠️ 小心地上有<span style="color:#FF5252">無底裂縫</span>，掉下即死！<br>
+               ⚠️ 尖刺、小恐龍會扣<span style="color:#FF5252">半滴血</span>，被牆壁推到底也會被暴龍吃掉！<br>
+               ⚠️ 天上會掉下隕石，請閃避！<br>
+               🥚 收集鳥蛋可推進進度，<span style="color:#4CAF50">同時恢復 1 滴血！</span>
+            </p>
+            <p class="blink-text">按下任意鍵 或 點擊畫面開始</p>
+        </div>
+
+        <!-- 死亡畫面 -->
+        <div id="game-over-screen" class="screen">
+            <h1 style="color:#F44336;">GAME OVER</h1>
+            <p id="death-reason">你倒下了！</p>
+            <p class="blink-text">按下任意鍵 或 點擊畫面重新開始</p>
+        </div>
+
+        <!-- 勝利畫面 -->
+        <div id="win-screen" class="screen">
+            <h1 style="color:#FFEB3B;">展翅高飛！</h1>
+            <p>你集滿了3顆蛋，成功飛離了暴龍的魔掌！</p>
+            <p id="win-score">奔跑距離: 10000m</p>
+            <p class="blink-text">按下任意鍵 或 點擊畫面重新開始</p>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // 音效系統 (Web Audio API 8-bit 合成)
+    let audioCtx;
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playSound(type) {
+        if (!audioCtx) return;
+        const t = audioCtx.currentTime;
+
+        // 勝利音樂：振奮人心的短暫和弦 (C -> E -> G 和弦琶音)
+        if (type === 'fly') {
+            const chords = [
+                [523.25, 659.25, 783.99], // C Major
+                [659.25, 830.61, 987.77], // E Minor
+                [783.99, 987.77, 1174.66] // G Major
+            ];
+            chords.forEach((chord, i) => {
+                chord.forEach(freq => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.type = 'square';
+                    o.frequency.value = freq;
+                    o.connect(g); g.connect(audioCtx.destination);
+                    g.gain.setValueAtTime(0, t + i * 0.15);
+                    g.gain.linearRampToValueAtTime(0.1, t + i * 0.15 + 0.05);
+                    g.gain.linearRampToValueAtTime(0, t + i * 0.15 + 0.4);
+                    o.start(t + i * 0.15); o.stop(t + i * 0.15 + 0.4);
+                });
+            });
+            return;
+        }
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'roar') {
+            // 恐龍嘶吼：更威猛低沉 (頻率從 80 降到 5)
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(80, t);
+            osc.frequency.exponentialRampToValueAtTime(5, t + 1.5);
+            gain.gain.setValueAtTime(0.8, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 1.5);
+            osc.start(t); osc.stop(t + 1.5);
+        } 
+        else if (type === 'jump') {
+            // 彈簧跳躍：快速上升的頻率 (鋼琴刷上去感)
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, t);
+            osc.frequency.exponentialRampToValueAtTime(1200, t + 0.15);
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.linearRampToValueAtTime(0, t + 0.15);
+            osc.start(t); osc.stop(t + 0.15);
+        }
+        else if (type === 'hurt1' || type === 'hurt2') {
+            // 可愛受傷鳥叫 (畢) 兩種樣式
+            osc.type = 'square';
+            if (type === 'hurt1') {
+                osc.frequency.setValueAtTime(1200, t);
+                osc.frequency.exponentialRampToValueAtTime(800, t + 0.15);
+            } else {
+                osc.frequency.setValueAtTime(1500, t);
+                osc.frequency.exponentialRampToValueAtTime(1000, t + 0.12);
+            }
+            gain.gain.setValueAtTime(0.15, t);
+            gain.gain.linearRampToValueAtTime(0, t + 0.15);
+            osc.start(t); osc.stop(t + 0.15);
+        }
+        else if (type === 'fail') {
+            // 挫折音效 (下降音階)
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(300, t);
+            osc.frequency.setValueAtTime(200, t + 0.2);
+            osc.frequency.setValueAtTime(150, t + 0.4);
+            osc.frequency.setValueAtTime(100, t + 0.6);
+            gain.gain.setValueAtTime(0.4, t);
+            gain.gain.linearRampToValueAtTime(0, t + 1.0);
+            osc.start(t); osc.stop(t + 1.0);
+        }
+        else if (type === 'egg') {
+            // 吃到蛋 (充滿提升感的雙音階)
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, t);
+            osc.frequency.linearRampToValueAtTime(800, t + 0.1);
+            osc.frequency.setValueAtTime(800, t + 0.1);
+            osc.frequency.linearRampToValueAtTime(1200, t + 0.2);
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.linearRampToValueAtTime(0, t + 0.2);
+            osc.start(t); osc.stop(t + 0.2);
+        }
+        else if (type === 'stomp' || type === 'meteor') {
+            // 踩踏或隕石爆炸重低音
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(100, t);
+            osc.frequency.exponentialRampToValueAtTime(10, t + 0.3);
+            gain.gain.setValueAtTime(0.6, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+            osc.start(t); osc.stop(t + 0.3);
+        }
+    }
+
+    // 遊戲狀態與常數
+    let state = 'START'; // START, PLAYING, FLYING_AWAY, GAMEOVER, WIN
+    let lastTime = 0;
+    let stateTime = 0; // 記錄進入狀態的時間，用以防止連續點擊誤觸
+    
+    // 畫面尺寸適應
+    let width, height, groundY;
+    function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+        groundY = height - 80;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // 遊戲設定
+    const GRAVITY = 0.6;
+    const JUMP_FORCE = -12;
+    const MAX_HP = 3;
+    const MAX_EGGS = 3;
+    const BASELINE_X = width * 0.3;
+    const SCROLL_SPEED = 4; // 卷軸基本速度降低20%
+    let currentScrollSpeed = 4;
+    let targetScrollSpeed = 4;
+
+    // 實體資料
+    let player, bigDino, objects, particles, meteors, worldX, distance;
+
+    // 虛擬與實體按鍵狀態
+    let keys = { jump: false, left: false, right: false };
+
+    // --- 鍵盤控制 ---
+    window.addEventListener('keydown', e => {
+        if(state === 'START') {
+            startGame();
+            return;
+        }
+        if(state === 'GAMEOVER' || state === 'WIN') {
+            if (performance.now() - stateTime > 1000) resetGame();
+            return;
+        }
+        if(e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+            keys['jump'] = true;
+            if(state === 'PLAYING') handleJump();
+        }
+        if(e.code === 'ArrowLeft' || e.code === 'KeyA') keys['left'] = true;
+        if(e.code === 'ArrowRight' || e.code === 'KeyD') keys['right'] = true;
+    });
+
+    window.addEventListener('keyup', e => {
+        if(e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') keys['jump'] = false;
+        if(e.code === 'ArrowLeft' || e.code === 'KeyA') keys['left'] = false;
+        if(e.code === 'ArrowRight' || e.code === 'KeyD') keys['right'] = false;
+    });
+
+    // --- 觸控與滑鼠控制 (全螢幕跳躍) ---
+    // 避免點擊到虛擬方向鍵時觸發跳躍
+    function isEventOnControls(e) {
+        if (e.target.closest('#mobile-controls')) return true;
+        // 如果是觸控事件，檢查觸碰點是否在按鈕內
+        if (e.touches) {
+            for (let i = 0; i < e.touches.length; i++) {
+                let target = document.elementFromPoint(e.touches[i].clientX, e.touches[i].clientY);
+                if (target && target.closest('#mobile-controls')) return true;
+            }
+        }
+        return false;
+    }
+
+    window.addEventListener('mousedown', (e) => {
+        if(state === 'START') {
+            startGame();
+            return;
+        }
+        if(state === 'GAMEOVER' || state === 'WIN') {
+            if (performance.now() - stateTime > 1000) resetGame();
+            return;
+        }
+        if(state === 'PLAYING' && !isEventOnControls(e)) handleJump();
+    });
+
+    window.addEventListener('touchstart', (e) => {
+        if(state === 'START') {
+            e.preventDefault();
+            startGame();
+            return;
+        }
+        if(state === 'GAMEOVER' || state === 'WIN') {
+            e.preventDefault();
+            if (performance.now() - stateTime > 1000) resetGame();
+            return;
+        }
+        // 如果觸控點不在方向鍵上，才觸發跳躍 (支援多點觸控)
+        if(state === 'PLAYING' || state === 'FLYING_AWAY') {
+            let triggeredJump = false;
+            for(let i=0; i < e.changedTouches.length; i++) {
+                let target = document.elementFromPoint(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+                if (!target || !target.closest('#mobile-controls')) {
+                    triggeredJump = true;
+                }
+            }
+            if(triggeredJump) {
+                e.preventDefault();
+                handleJump();
+            }
+        }
+    }, {passive: false});
+
+    // --- 虛擬方向鍵控制 (UI 按鈕) ---
+    const btnLeft = document.getElementById('btn-left');
+    const btnRight = document.getElementById('btn-right');
+
+    // 綁定左鍵
+    btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); keys['left'] = true; btnLeft.classList.add('active'); });
+    btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); keys['left'] = false; btnLeft.classList.remove('active'); });
+    btnLeft.addEventListener('touchcancel', (e) => { keys['left'] = false; btnLeft.classList.remove('active'); });
+    btnLeft.addEventListener('mousedown', (e) => { keys['left'] = true; btnLeft.classList.add('active'); });
+    btnLeft.addEventListener('mouseup', (e) => { keys['left'] = false; btnLeft.classList.remove('active'); });
+    btnLeft.addEventListener('mouseleave', (e) => { keys['left'] = false; btnLeft.classList.remove('active'); });
+
+    // 綁定右鍵
+    btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); keys['right'] = true; btnRight.classList.add('active'); });
+    btnRight.addEventListener('touchend', (e) => { e.preventDefault(); keys['right'] = false; btnRight.classList.remove('active'); });
+    btnRight.addEventListener('touchcancel', (e) => { keys['right'] = false; btnRight.classList.remove('active'); });
+    btnRight.addEventListener('mousedown', (e) => { keys['right'] = true; btnRight.classList.add('active'); });
+    btnRight.addEventListener('mouseup', (e) => { keys['right'] = false; btnRight.classList.remove('active'); });
+    btnRight.addEventListener('mouseleave', (e) => { keys['right'] = false; btnRight.classList.remove('active'); });
+
+
+    function handleJump() {
+        if(player.jumps < 2) {
+            player.vy = JUMP_FORCE;
+            player.jumps++;
+            player.grounded = false;
+            playSound('jump');
+            createParticles(player.x + player.w/2, player.y + player.h, '#FFF', 5);
+        } else if (player.flaps < 10) {
+            // 空中連打振翅浮空機制
+            player.vy = -4.5; // 給予較弱的向上推力對抗重力
+            player.flaps++;
+            playSound('jump');
+            createParticles(player.x + player.w/2, player.y + player.h, '#FFD54F', 3);
+        }
+    }
+
+    // 初始化/重置遊戲
+    function initGame() {
+        worldX = 0;
+        distance = 0;
+        currentScrollSpeed = SCROLL_SPEED;
+        targetScrollSpeed = SCROLL_SPEED;
+        
+        player = {
+            x: BASELINE_X,
+            y: groundY - 50,
+            w: 40,
+            h: 40,
+            vy: 0,
+            jumps: 0,
+            flaps: 0, // 記錄振翅次數
+            grounded: false,
+            hp: MAX_HP,
+            eggs: 0,
+            invincibleTimer: 0
+        };
+
+        bigDino = {
+            state: 'normal', // normal, charge, trip, jump_stomp
+            x: -50,
+            y: groundY - 200,
+            vy: 0,
+            w: 150,
+            h: 200,
+            jawOpen: 0,
+            jawDir: 1,
+            actionTimer: 0,
+            targetX: -50
+        };
+
+        particles = [];
+        meteors = [];
+        generateLevel();
+        updateUI();
+
+        // 顯示虛擬方向鍵
+        document.getElementById('mobile-controls').style.display = 'flex';
+        // 重置按鍵狀態防卡鍵
+        keys.left = false;
+        keys.right = false;
+        btnLeft.classList.remove('active');
+        btnRight.classList.remove('active');
+    }
+
+    function generateLevel() {
+        objects = [];
+        let curX = width; 
+        let dinosSinceLastEgg = 0;
+        
+        // 生成足夠長度的物件，保證能吃到3顆蛋
+        while(curX < 25000) {
+            let gap = Math.random() * 200 + 300; 
+            curX += gap;
+
+            // 機制：每越過(生成)3隻小恐龍，就在下一個空地生成一顆蛋
+            if (dinosSinceLastEgg >= 3) {
+                objects.push({ type: 'egg', x: curX, y: groundY - 40, w: 30, h: 40 });
+                dinosSinceLastEgg = 0;
+                continue; // 確保蛋不會跟其他障礙物重疊
+            }
+
+            let rand = Math.random();
+            
+            // 裂縫 (Chasm) - 約15%機率
+            if(rand < 0.15) {
+                let chasmW = 100 + Math.random() * 80; // 裂縫寬度
+                objects.push({ type: 'chasm', x: curX, y: groundY, w: chasmW, h: height - groundY });
+                curX += chasmW; // 確保裂縫後有空間
+                continue;
+            }
+
+            // 生成一般障礙物
+            if(rand < 0.35) {
+                // 牆壁
+                let wallH = Math.random() > 0.5 ? 60 : 100;
+                objects.push({ type: 'wall', x: curX, y: groundY - wallH, w: 40, h: wallH });
+            } else if(rand < 0.55) {
+                // 尖刺
+                objects.push({ type: 'spike', x: curX, y: groundY - 30, w: 50, h: 30 });
+            } else if(rand < 0.8) {
+                // 平台 (小恐龍只會在地面，因此移除平台上的恐龍生成)
+                let platH = groundY - 100 - Math.random() * 50;
+                objects.push({ type: 'platform', x: curX, y: platH, w: 120, h: 20 });
+            } else {
+                // 地面上的小恐龍
+                objects.push({ type: 'smalldino', x: curX, y: groundY - 40, w: 40, h: 40, speed: 3 });
+                dinosSinceLastEgg++;
+            }
+        }
+    }
+
+    function createParticles(x, y, color, count) {
+        for(let i=0; i<count; i++) {
+            particles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 6,
+                vy: (Math.random() - 1) * 6,
+                life: 1.0,
+                color: color
+            });
+        }
+    }
+
+    // 主迴圈
+    function update(time) {
+        if(state !== 'PLAYING' && state !== 'FLYING_AWAY') return;
+        requestAnimationFrame(update);
+
+        let dt = time - lastTime;
+        lastTime = time;
+
+        // 玩家左右移動控制 (平行移動)
+        if (state === 'PLAYING') {
+            let playerSpeedX = 6;
+            if (keys['left']) player.x -= playerSpeedX;
+            if (keys['right']) player.x += playerSpeedX;
+
+            // 限制玩家移動範圍
+            let minX = bigDino.x + bigDino.w - 10;
+            if (player.x < minX) player.x = minX;
+            if (player.x > width - player.w) player.x = width - player.w;
+        }
+
+        // 暴龍 AI 邏輯
+        if (state === 'PLAYING') {
+            if (bigDino.state === 'normal' && Math.random() < 0.003) { 
+                let randMove = Math.random();
+                if (randMove < 0.5) {
+                    // 發動衝刺 (衝到畫面中間)
+                    bigDino.state = 'charge';
+                    bigDino.actionTimer = 200; 
+                    playSound('roar');
+                    targetScrollSpeed = 8; // 衝刺速度
+                    bigDino.targetX = width / 2 - bigDino.w / 2;  
+                } else {
+                    // 發動跳躍踩踏
+                    bigDino.state = 'jump_stomp';
+                    bigDino.vy = -22; // 向上跳
+                    bigDino.targetX = player.x > 150 ? player.x - 100 : 50; // 往前跳一點
+                    playSound('roar');
+                }
+            }
+
+            if (bigDino.state === 'charge') {
+                bigDino.actionTimer--;
+                // 衝刺途中有機率跌倒 (暫時消失然後跟上)
+                if (bigDino.actionTimer === 100 && Math.random() < 0.4) {
+                    bigDino.state = 'trip';
+                    bigDino.actionTimer = 150; // 跌倒消失時間
+                    playSound('hurt1'); 
+                    targetScrollSpeed = SCROLL_SPEED;
+                } else if (bigDino.actionTimer <= 0) {
+                    bigDino.state = 'normal';
+                    targetScrollSpeed = SCROLL_SPEED; 
+                    bigDino.targetX = -50; 
+                }
+            } 
+            else if (bigDino.state === 'trip') {
+                bigDino.actionTimer--;
+                bigDino.y += 15; // 快速掉出畫面外
+                bigDino.targetX = -100; // 退到畫面後方
+                if (bigDino.actionTimer <= 0) {
+                    // 爬起來緊跟回來
+                    bigDino.state = 'normal';
+                    bigDino.y = groundY - 200;
+                    bigDino.targetX = -50;
+                }
+            }
+            else if (bigDino.state === 'jump_stomp') {
+                bigDino.vy += GRAVITY * 1.5; // 加速掉落
+                bigDino.y += bigDino.vy;
+                
+                if (bigDino.y >= groundY - bigDino.h) {
+                    bigDino.y = groundY - bigDino.h;
+                    bigDino.vy = 0;
+                    // 踩踏著地，產生特效與音效
+                    createParticles(bigDino.x + bigDino.w/2, groundY, '#2E7D32', 30);
+                    playSound('stomp');
+                    bigDino.state = 'normal';
+                    bigDino.targetX = -50;
+                }
+            }
+        }
+
+        // 平滑過渡速度與暴龍位置
+        currentScrollSpeed += (targetScrollSpeed - currentScrollSpeed) * 0.05;
+        if (bigDino.state !== 'jump_stomp') { // 跳躍時不平滑 X，讓他自然跳
+            bigDino.x += (bigDino.targetX - bigDino.x) * 0.05;
+        } else {
+            bigDino.x += (bigDino.targetX - bigDino.x) * 0.08;
+        }
+
+        // 隕石生成邏輯
+        if (state === 'PLAYING' && Math.random() < 0.015) {
+            meteors.push({
+                x: worldX + Math.random() * width * 1.5, // 在世界坐標靠前的位置生成
+                y: -100,
+                vx: -2 - Math.random() * 2, // 往左下墜落
+                vy: 6 + Math.random() * 5,
+                r: 15,
+                active: true
+            });
+        }
+
+        // 隕石更新
+        for (let i = meteors.length - 1; i >= 0; i--) {
+            let m = meteors[i];
+            m.x += m.vx;
+            m.y += m.vy;
+
+            let screenX = m.x - worldX;
+
+            // 撞擊地面
+            if (m.y >= groundY) {
+                createParticles(screenX, groundY, '#FF5722', 20);
+                playSound('meteor');
+                meteors.splice(i, 1);
+                continue;
+            }
+
+            // 撞擊玩家
+            let pRect = { x: player.x, y: player.y, w: player.w, h: player.h };
+            let mRect = { x: screenX - m.r, y: m.y - m.r, w: m.r*2, h: m.r*2 };
+            
+            if (m.active && state === 'PLAYING' && 
+                pRect.x < mRect.x + mRect.w && pRect.x + pRect.w > mRect.x &&
+                pRect.y < mRect.y + mRect.h && pRect.y + pRect.h > mRect.y) {
+                
+                takeDamage();
+                createParticles(screenX, m.y, '#FF5722', 20);
+                m.active = false;
+                meteors.splice(i, 1);
+                continue;
+            }
+        }
+
+        // 捲動世界
+        worldX += currentScrollSpeed;
+        distance += currentScrollSpeed;
+
+        if (state === 'FLYING_AWAY') {
+            // 勝利飛翔演出
+            player.x += 4;
+            player.y -= 3;
+            player.vy = 0;
+            // 飛出螢幕後觸發勝利畫面
+            if(player.y < -100 || player.x > width + 100) {
+                winGame();
+            }
+        } else {
+            // 正常遊玩物理
+            player.vy += GRAVITY;
+            player.y += player.vy;
+            player.grounded = false;
+        }
+        
+        let pushedByWall = false;
+        let overChasm = false;
+
+        // 檢查是否在裂縫上方
+        for(let obj of objects) {
+            if(obj.type === 'chasm') {
+                let screenX = obj.x - worldX;
+                // 角色中心點在裂縫範圍內
+                if(player.x + player.w/2 > screenX + 10 && player.x + player.w/2 < screenX + obj.w - 10) {
+                    overChasm = true;
+                    break;
+                }
+            }
+        }
+
+        // 地面碰撞 (如果在裂縫上則失效)
+        if(state !== 'FLYING_AWAY' && player.y + player.h >= groundY) {
+            if(!overChasm) {
+                player.y = groundY - player.h;
+                player.vy = 0;
+                player.grounded = true;
+                player.jumps = 0;
+                player.flaps = 0; // 重置振翅次數
+            }
+        }
+
+        // 掉進裂縫死亡判定
+        if(player.y > height) {
+            gameOver("你掉進無底裂縫了！");
+            return;
+        }
+
+        // 無敵時間計時
+        if(player.invincibleTimer > 0) player.invincibleTimer--;
+
+        // 處理一般障礙物
+        for(let i=0; i<objects.length; i++) {
+            let obj = objects[i];
+            if(obj.type === 'chasm' || obj.type === 'collected') continue; // 略過已處理或移除的
+
+            let screenX = obj.x - worldX;
+            
+            // 小恐龍移動
+            if(obj.type === 'smalldino') obj.x -= obj.speed; 
+
+            // 簡易 AABB 碰撞檢測
+            let pRect = { x: player.x, y: player.y, w: player.w, h: player.h };
+            let oRect = { x: screenX, y: obj.y, w: obj.w, h: obj.h };
+
+            if (pRect.x < oRect.x + oRect.w && pRect.x + pRect.w > oRect.x &&
+                pRect.y < oRect.y + oRect.h && pRect.y + pRect.h > oRect.y) {
+                
+                if (state === 'FLYING_AWAY') continue; // 飛走時無視障礙
+
+                if (obj.type === 'wall') {
+                    if(player.x + player.w/2 < screenX + 10) {
+                        player.x = screenX - player.w; // 被牆往左推
+                        pushedByWall = true;
+                    } 
+                    else if(player.vy > 0 && player.y + player.h - player.vy <= obj.y + 10) {
+                        player.y = obj.y - player.h;
+                        player.vy = 0;
+                        player.grounded = true;
+                        player.jumps = 0;
+                        player.flaps = 0; // 重置振翅次數
+                    }
+                } 
+                else if (obj.type === 'platform') {
+                    if(player.vy > 0 && player.y + player.h - player.vy <= obj.y + 15) {
+                        player.y = obj.y - player.h;
+                        player.vy = 0;
+                        player.grounded = true;
+                        player.jumps = 0;
+                        player.flaps = 0; // 重置振翅次數
+                    }
+                }
+                else if (obj.type === 'spike' || obj.type === 'smalldino') {
+                    takeDamage();
+                }
+                else if (obj.type === 'egg') {
+                    collectEgg(obj);
+                }
+            }
+        } 
+
+        // 死亡判定：被暴龍吃掉 (X過小)，且暴龍不是在跌倒狀態
+        if(state !== 'FLYING_AWAY' && bigDino.state !== 'trip' && player.x < bigDino.x + bigDino.w - 30) {
+            gameOver("你被暴龍一口吃掉了！");
+            return;
+        }
+
+        // 暴龍動畫
+        bigDino.jawOpen += 0.05 * bigDino.jawDir;
+        if(bigDino.jawOpen > 1) bigDino.jawDir = -1;
+        if(bigDino.jawOpen < 0) bigDino.jawDir = 1;
+
+        // 粒子更新
+        for(let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= 0.02;
+            if(p.life <= 0) particles.splice(i, 1);
+        }
+
+        draw();
+    }
+
+    function takeDamage() {
+        if(player.invincibleTimer <= 0) {
+            player.hp -= 0.5; // 改為扣半顆心
+            player.invincibleTimer = 60; // 60幀無敵
+            updateUI();
+            
+            // 隨機播放兩種受傷音效
+            playSound(Math.random() > 0.5 ? 'hurt1' : 'hurt2');
+            createParticles(player.x + player.w/2, player.y + player.h/2, '#F44336', 15);
+            
+            if(player.hp <= 0) {
+                gameOver("你受傷過重倒下了！");
+            }
+        }
+    }
+
+    function collectEgg(eggObj) {
+        eggObj.type = 'collected'; // 標記為已收集
+        player.eggs++;
+        
+        // 吃蛋補血機制 (確保不超過上限)
+        if (player.hp < MAX_HP) {
+            player.hp = Math.min(MAX_HP, player.hp + 1);
+            createParticles(player.x + player.w/2, player.y, '#4CAF50', 10); // 補血綠色特效
+        }
+
+        playSound('egg');
+        updateUI();
+        createParticles(eggObj.x - worldX + eggObj.w/2, eggObj.y + eggObj.h/2, '#FFF9C4', 10);
+
+        if(player.eggs >= MAX_EGGS) {
+            state = 'FLYING_AWAY';
+            playSound('fly');
+        }
+    }
+
+    function updateUI() {
+        // 血量
+        for(let i=1; i<=MAX_HP; i++) {
+            let heart = document.getElementById('h' + i);
+            heart.classList.remove('empty', 'half');
+            if(player.hp >= i) {
+                // 全滿不需加 class
+            } else if(player.hp >= i - 0.5) {
+                heart.classList.add('half');
+            } else {
+                heart.classList.add('empty');
+            }
+        }
+        // 蛋
+        for(let i=1; i<=MAX_EGGS; i++) {
+            let egg = document.getElementById('e' + i);
+            if(i <= player.eggs) egg.classList.add('collected');
+            else egg.classList.remove('collected');
+        }
+    }
+
+    // ================= 繪圖區域 =================
+
+    function draw() {
+        // 背景天空
+        ctx.fillStyle = '#87CEEB'; 
+        ctx.fillRect(0, 0, width, height);
+
+        // 繪製遠景山脈 (視差捲動)
+        ctx.fillStyle = '#A9A9A9';
+        for(let i=0; i<5; i++) {
+            let bgX = (i * 400 - (worldX * 0.2) % 400);
+            ctx.beginPath();
+            ctx.moveTo(bgX, groundY);
+            ctx.lineTo(bgX + 150, groundY - 200);
+            ctx.lineTo(bgX + 300, groundY);
+            ctx.fill();
+        }
+
+        // 繪製地面與裂縫
+        // 為了呈現裂縫，我們先畫深色底作為坑洞，再把非裂縫的地方畫上土地
+        ctx.fillStyle = '#1a0f00'; // 無底洞深色
+        ctx.fillRect(0, groundY, width, height - groundY);
+
+        ctx.fillStyle = '#8B4513'; // 土地
+        let currentDrawX = 0;
+        
+        // 畫出除了裂縫以外的土地
+        for(let obj of objects) {
+            if(obj.type === 'chasm') {
+                let screenX = obj.x - worldX;
+                // 畫出裂縫前的土地
+                if(screenX > currentDrawX) {
+                    drawGroundSection(currentDrawX, screenX);
+                }
+                currentDrawX = screenX + obj.w;
+            }
+        }
+        // 畫出最後一個裂縫之後的土地
+        if(currentDrawX < width) {
+            drawGroundSection(currentDrawX, width);
+        }
+
+        // 繪製障礙物
+        for(let obj of objects) {
+            let screenX = obj.x - worldX;
+            if(screenX > width + 100 || screenX + obj.w < -100) continue;
+            if(obj.type === 'collected' || obj.type === 'chasm') continue;
+
+            if(obj.type === 'wall') {
+                ctx.fillStyle = '#B71C1C';
+                ctx.fillRect(screenX, obj.y, obj.w, obj.h);
+                ctx.strokeRect(screenX, obj.y, obj.w, obj.h);
+                ctx.beginPath();
+                for(let y = obj.y + 20; y < obj.y + obj.h; y += 20) {
+                    ctx.moveTo(screenX, y); ctx.lineTo(screenX + obj.w, y);
+                }
+                ctx.stroke();
+            }
+            else if(obj.type === 'spike') {
+                ctx.fillStyle = '#9E9E9E';
+                ctx.beginPath();
+                ctx.moveTo(screenX, obj.y + obj.h);
+                ctx.lineTo(screenX + obj.w/2, obj.y);
+                ctx.lineTo(screenX + obj.w, obj.y + obj.h);
+                ctx.closePath();
+                ctx.fill(); ctx.stroke();
+            }
+            else if(obj.type === 'platform') {
+                ctx.fillStyle = '#FF9800';
+                ctx.fillRect(screenX, obj.y, obj.w, obj.h);
+                ctx.strokeRect(screenX, obj.y, obj.w, obj.h);
+            }
+            else if(obj.type === 'smalldino') {
+                drawSmallDino(screenX, obj.y, obj.w, obj.h);
+            }
+            else if(obj.type === 'egg') {
+                drawEgg(screenX, obj.y, obj.w, obj.h);
+            }
+        }
+
+        // 繪製玩家陸行鳥 (閃爍效果)
+        if(player.invincibleTimer % 10 < 5) {
+            drawPlayer();
+        }
+
+        // 繪製暴龍 (如果陸行鳥飛高了，暴龍就在下面乾瞪眼)
+        drawBigDino();
+
+        // 繪製掉落中的隕石
+        for (let m of meteors) {
+            let screenX = m.x - worldX;
+            // 隕石本體
+            ctx.fillStyle = '#FF5722';
+            ctx.beginPath();
+            ctx.arc(screenX, m.y, m.r, 0, Math.PI * 2);
+            ctx.fill();
+            // 隕石尾巴
+            ctx.fillStyle = '#FFEB3B';
+            ctx.beginPath();
+            ctx.moveTo(screenX, m.y - m.r);
+            ctx.lineTo(screenX - m.vx * 3, m.y - m.vy * 3);
+            ctx.lineTo(screenX, m.y + m.r);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // 如果暴龍在衝刺，繪製白色的速度線
+        if (bigDino.state === 'charge') {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 2;
+            for(let i=0; i<8; i++) {
+                let sy = Math.random() * height;
+                let slen = Math.random() * 300 + 100;
+                ctx.beginPath();
+                ctx.moveTo(width, sy);
+                ctx.lineTo(width - slen, sy);
+                ctx.stroke();
+            }
+        }
+
+        // 繪製粒子
+        for(let p of particles) {
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.life;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1.0;
+    }
+
+    function drawGroundSection(startX, endX) {
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(startX, groundY, endX - startX, height - groundY);
+        ctx.fillStyle = '#4CAF50';
+        ctx.fillRect(startX, groundY, endX - startX, 15);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(startX, groundY); ctx.lineTo(endX, groundY); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(startX, groundY+15); ctx.lineTo(endX, groundY+15); ctx.stroke();
+        
+        // 補上裂縫邊緣黑線
+        ctx.beginPath(); ctx.moveTo(startX, groundY); ctx.lineTo(startX, height); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(endX, groundY); ctx.lineTo(endX, height); ctx.stroke();
+    }
+
+    // 向量繪圖：陸行鳥 (Chocobo)
+    function drawPlayer() {
+        ctx.save();
+        ctx.translate(player.x, player.y);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+
+        // 鳥身 (黃色橢圓)
+        ctx.fillStyle = '#FFEB3B';
+        ctx.beginPath();
+        ctx.ellipse(player.w/2, player.h/2 + 5, player.w/2, player.h/2 - 5, 0, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke();
+
+        // 頭部
+        ctx.beginPath();
+        ctx.arc(player.w/2 + 8, 10, 14, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke();
+
+        // 嘴喙 (橘色)
+        ctx.fillStyle = '#FF9800';
+        ctx.beginPath();
+        ctx.moveTo(player.w/2 + 20, 5);
+        ctx.lineTo(player.w/2 + 35, 10);
+        ctx.lineTo(player.w/2 + 20, 15);
+        ctx.fill(); ctx.stroke();
+
+        // 眼睛
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(player.w/2 + 12, 6, 3, 0, Math.PI*2);
+        ctx.fill();
+
+        // 翅膀
+        ctx.fillStyle = '#FDD835';
+        ctx.beginPath();
+        // 如果在天上飛或跳躍，翅膀快速拍打
+        let flap = (state === 'FLYING_AWAY' || !player.grounded) ? Math.sin(Date.now()/50)*12 : 0;
+        ctx.ellipse(player.w/2 - 8, player.h/2 + 2, 12, 8 + Math.abs(flap), Math.PI/4, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke();
+
+        // 腳丫子 (飛翔時不畫腳，或往後縮)
+        if(state !== 'FLYING_AWAY') {
+            ctx.strokeStyle = '#FF9800';
+            ctx.lineWidth = 3;
+            let legAnim = (player.grounded && state === 'PLAYING') ? Math.sin(Date.now()/50)*5 : 0;
+            // 前腳
+            ctx.beginPath(); ctx.moveTo(player.w/2 + 5, player.h); ctx.lineTo(player.w/2, player.h + 10 - legAnim); ctx.stroke();
+            // 後腳
+            ctx.beginPath(); ctx.moveTo(player.w/2 - 5, player.h); ctx.lineTo(player.w/2 - 10, player.h + 10 + legAnim); ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+
+    // 向量繪圖：鳥蛋
+    function drawEgg(x, y, w, h) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.fillStyle = '#FFF9C4'; // 淡黃白
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        
+        ctx.beginPath();
+        // 繪製蛋型
+        ctx.ellipse(w/2, h/2, w/2, h/2 + 5, 0, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke();
+
+        // 一些斑點
+        ctx.fillStyle = '#FFCC80';
+        ctx.beginPath(); ctx.arc(w/2 - 5, h/2 - 5, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(w/2 + 6, h/2 + 8, 4, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(w/2 + 2, h/2 - 12, 2, 0, Math.PI*2); ctx.fill();
+
+        ctx.restore();
+    }
+
+    // 向量繪圖：大暴龍
+    function drawBigDino() {
+        ctx.save();
+        // 衝刺或跳躍踩踏時加入震動效果
+        let shakeY = (bigDino.state === 'charge' || bigDino.state === 'jump_stomp') ? (Math.random() - 0.5) * 8 : 0;
+        let shakeX = (bigDino.state === 'charge' || bigDino.state === 'jump_stomp') ? (Math.random() - 0.5) * 8 : 0;
+        
+        ctx.translate(bigDino.x + shakeX, bigDino.y + shakeY);
+        
+        // 跌倒翻轉特效
+        if (bigDino.state === 'trip') {
+            ctx.rotate(Math.PI / 6); // 往前撲街的角度
+        }
+
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#000';
+        
+        ctx.fillStyle = '#2E7D32'; 
+        ctx.beginPath();
+        ctx.moveTo(0, bigDino.h);
+        ctx.lineTo(bigDino.w - 20, bigDino.h); 
+        ctx.lineTo(bigDino.w, 80); 
+        ctx.lineTo(bigDino.w - 30, 20); 
+        ctx.lineTo(50, 0); 
+        ctx.lineTo(0, 80); 
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = '#F44336';
+        ctx.beginPath();
+        ctx.arc(bigDino.w - 30, 40, 8, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(bigDino.w - 45, 30); ctx.lineTo(bigDino.w - 20, 35); ctx.stroke();
+
+        let jawOffset = bigDino.jawOpen * 25;
+        
+        ctx.fillStyle = '#FFF';
+        ctx.beginPath();
+        for(let i=0; i<3; i++) {
+            ctx.moveTo(bigDino.w + 10 - i*15, 60);
+            ctx.lineTo(bigDino.w + 5 - i*15, 75);
+            ctx.lineTo(bigDino.w - i*15, 60);
+        }
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = '#1B5E20';
+        ctx.beginPath();
+        ctx.moveTo(bigDino.w - 50, 60 + jawOffset);
+        ctx.lineTo(bigDino.w + 20, 60 + jawOffset);
+        ctx.lineTo(bigDino.w + 10, 90 + jawOffset);
+        ctx.lineTo(bigDino.w - 40, 90 + jawOffset);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = '#FFF';
+        ctx.beginPath();
+        for(let i=0; i<3; i++) {
+            ctx.moveTo(bigDino.w + 10 - i*15, 60 + jawOffset);
+            ctx.lineTo(bigDino.w + 5 - i*15, 45 + jawOffset);
+            ctx.lineTo(bigDino.w - i*15, 60 + jawOffset);
+        }
+        ctx.fill(); ctx.stroke();
+
+        ctx.restore();
+    }
+
+    // 向量繪圖：小恐龍
+    function drawSmallDino(x, y, w, h) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.fillStyle = '#9C27B0'; 
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+
+        ctx.fillRect(10, 0, w-10, h-10);
+        ctx.strokeRect(10, 0, w-10, h-10);
+        
+        ctx.beginPath();
+        ctx.moveTo(10, h-20);
+        ctx.lineTo(-10, h-10);
+        ctx.lineTo(10, h-10);
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = '#FFF';
+        ctx.fillRect(w-15, 5, 8, 8);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(w-12, 7, 3, 3);
+
+        let legOffset = (Date.now() / 150) % 2 > 1 ? 5 : -5;
+        ctx.fillStyle = '#7B1FA2';
+        ctx.fillRect(15, h-10, 8, 10 + legOffset);
+        ctx.strokeRect(15, h-10, 8, 10 + legOffset);
+        ctx.fillRect(w-15, h-10, 8, 10 - legOffset);
+        ctx.strokeRect(w-15, h-10, 8, 10 - legOffset);
+
+        ctx.restore();
+    }
+
+    // ================= 狀態控制 =================
+
+    function changeState(newState) {
+        state = newState;
+        stateTime = performance.now();
+        if (newState === 'GAMEOVER' || newState === 'WIN' || newState === 'START') {
+            document.getElementById('mobile-controls').style.display = 'none';
+        }
+    }
+
+    function startGame() {
+        initAudio(); // 初始化音訊並突破瀏覽器限制
+        playSound('roar'); // 開場暴龍嘶吼
+
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('game-over-screen').style.display = 'none';
+        document.getElementById('win-screen').style.display = 'none';
+        initGame();
+        changeState('PLAYING');
+        lastTime = performance.now();
+        requestAnimationFrame(update);
+    }
+
+    function gameOver(reason) {
+        changeState('GAMEOVER');
+        playSound('fail'); // 失敗挫折音效
+        document.getElementById('death-reason').innerText = reason;
+        document.getElementById('game-over-screen').style.display = 'block';
+    }
+
+    function winGame() {
+        changeState('WIN');
+        document.getElementById('win-score').innerText = `狂奔距離: ${Math.floor(distance)}m`;
+        document.getElementById('win-screen').style.display = 'block';
+    }
+
+    function resetGame() {
+        startGame();
+    }
+
+    initGame();
+    // 隱藏初始的控制器直到遊戲開始
+    document.getElementById('mobile-controls').style.display = 'none';
+    draw();
+
+</script>
+</body>
+</html>
