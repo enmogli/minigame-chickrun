@@ -106,34 +106,35 @@
             50% { opacity: 0; }
         }
 
-        /* 手機虛擬方向鍵設定 */
-        #mobile-controls {
+        /* 手機邊緣觸控區域 */
+        .touch-zone {
             position: absolute;
-            bottom: 30px;
-            left: 20px;
+            top: 0;
+            width: 15%;
+            max-width: 100px;
+            height: 100%;
+            z-index: 5;
+            background: rgba(255, 255, 255, 0.03);
             display: none; /* 遊戲開始時才顯示 */
-            gap: 20px;
-            z-index: 10;
-        }
-        .control-btn {
-            width: 60px;
-            height: 60px;
-            background: rgba(255, 255, 255, 0.3);
-            border: 3px solid rgba(255, 255, 255, 0.6);
-            border-radius: 50%;
-            display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 30px;
-            font-weight: bold;
+            color: rgba(255, 255, 255, 0.2);
+            font-size: 40px;
             user-select: none;
-            /* 支援觸控與滑鼠點擊的反饋 */
-            transition: background 0.1s;
+            transition: background 0.1s, color 0.1s;
         }
-        .control-btn:active, .control-btn.active {
-            background: rgba(255, 255, 255, 0.7);
-            color: #333;
+        .touch-zone.active {
+            background: rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.8);
+        }
+        #touch-zone-left {
+            left: 0;
+            border-right: 1px dashed rgba(255, 255, 255, 0.15);
+        }
+        #touch-zone-right {
+            right: 0;
+            border-left: 1px dashed rgba(255, 255, 255, 0.15);
         }
         
         /* 避免螢幕過小時字體太大溢出 */
@@ -143,8 +144,7 @@
             p { font-size: 14px; }
             .heart { width: 20px; height: 20px; }
             .egg-icon { width: 18px; height: 24px; }
-            #mobile-controls { bottom: 20px; left: 10px; gap: 10px; }
-            .control-btn { width: 50px; height: 50px; font-size: 24px; }
+            .touch-zone { width: 20%; font-size: 30px; }
         }
     </style>
 </head>
@@ -165,11 +165,9 @@
         </div>
     </div>
 
-    <!-- 虛擬方向鍵 -->
-    <div id="mobile-controls">
-        <div class="control-btn" id="btn-left">◀</div>
-        <div class="control-btn" id="btn-right">▶</div>
-    </div>
+    <!-- 手機邊緣觸控區域 -->
+    <div id="touch-zone-left" class="touch-zone">◀</div>
+    <div id="touch-zone-right" class="touch-zone">▶</div>
 
     <div id="ui-layer">
         <!-- 開始畫面 -->
@@ -178,9 +176,9 @@
             <p>巨大的暴龍正在追你！<br>
                收集 <span style="color:#FFEB3B; font-weight:bold;">3 顆鳥蛋</span>，展翅高飛逃離這裡！</p>
             <p style="color:#FFA07A; font-size:16px;">
-               操作：點擊畫面 或 按下 [空白鍵] 跳躍<br>
+               操作：點擊畫面中間 或 按下 [空白鍵] 跳躍<br>
                (支援二段跳以越過高牆或大裂縫)<br>
-               <span style="color:#81D4FA">新增：使用 [方向鍵] 進行前後移動閃避！</span><br>
+               <span style="color:#81D4FA">手機：按住螢幕最左/右邊緣半透明區可移動！</span><br>
                <span style="color:#FFD54F">技巧：在空中連打跳躍鍵可以振翅浮空一下下！</span>
             </p>
             <p style="color:#FFF; font-size:14px; text-align:left;">
@@ -428,14 +426,14 @@
     });
 
     // --- 觸控與滑鼠控制 (全螢幕跳躍) ---
-    // 避免點擊到虛擬方向鍵時觸發跳躍
+    // 避免點擊到邊緣觸控區時觸發跳躍
     function isEventOnControls(e) {
-        if (e.target && e.target.closest && e.target.closest('#mobile-controls')) return true;
-        // 如果是觸控事件，檢查觸碰點是否在按鈕內
+        if (e.target && e.target.closest && e.target.closest('.touch-zone')) return true;
+        // 如果是觸控事件，檢查觸碰點是否在區域內
         if (e.touches) {
             for (let i = 0; i < e.touches.length; i++) {
                 let target = document.elementFromPoint(e.touches[i].clientX, e.touches[i].clientY);
-                if (target && target.closest('#mobile-controls')) return true;
+                if (target && target.closest('.touch-zone')) return true;
             }
         }
         return false;
@@ -469,7 +467,7 @@
             let triggeredJump = false;
             for(let i=0; i < e.changedTouches.length; i++) {
                 let target = document.elementFromPoint(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
-                if (!target || !target.closest('#mobile-controls')) {
+                if (!target || !target.closest('.touch-zone')) {
                     triggeredJump = true;
                 }
             }
@@ -480,25 +478,21 @@
         }
     }, {passive: false});
 
-    // --- 虛擬方向鍵控制 (UI 按鈕) ---
-    const btnLeft = document.getElementById('btn-left');
-    const btnRight = document.getElementById('btn-right');
+    // --- 邊緣觸控區域控制 (UI 按鈕) ---
+    const zoneLeft = document.getElementById('touch-zone-left');
+    const zoneRight = document.getElementById('touch-zone-right');
 
-    // 綁定左鍵
-    btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); keys['left'] = true; btnLeft.classList.add('active'); });
-    btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); keys['left'] = false; btnLeft.classList.remove('active'); });
-    btnLeft.addEventListener('touchcancel', (e) => { keys['left'] = false; btnLeft.classList.remove('active'); });
-    btnLeft.addEventListener('mousedown', (e) => { keys['left'] = true; btnLeft.classList.add('active'); });
-    btnLeft.addEventListener('mouseup', (e) => { keys['left'] = false; btnLeft.classList.remove('active'); });
-    btnLeft.addEventListener('mouseleave', (e) => { keys['left'] = false; btnLeft.classList.remove('active'); });
+    function bindTouchZone(zone, key) {
+        zone.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; zone.classList.add('active'); });
+        zone.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; zone.classList.remove('active'); });
+        zone.addEventListener('touchcancel', (e) => { keys[key] = false; zone.classList.remove('active'); });
+        zone.addEventListener('mousedown', (e) => { keys[key] = true; zone.classList.add('active'); });
+        zone.addEventListener('mouseup', (e) => { keys[key] = false; zone.classList.remove('active'); });
+        zone.addEventListener('mouseleave', (e) => { keys[key] = false; zone.classList.remove('active'); });
+    }
 
-    // 綁定右鍵
-    btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); keys['right'] = true; btnRight.classList.add('active'); });
-    btnRight.addEventListener('touchend', (e) => { e.preventDefault(); keys['right'] = false; btnRight.classList.remove('active'); });
-    btnRight.addEventListener('touchcancel', (e) => { keys['right'] = false; btnRight.classList.remove('active'); });
-    btnRight.addEventListener('mousedown', (e) => { keys['right'] = true; btnRight.classList.add('active'); });
-    btnRight.addEventListener('mouseup', (e) => { keys['right'] = false; btnRight.classList.remove('active'); });
-    btnRight.addEventListener('mouseleave', (e) => { keys['right'] = false; btnRight.classList.remove('active'); });
+    bindTouchZone(zoneLeft, 'left');
+    bindTouchZone(zoneRight, 'right');
 
 
     function handleJump() {
@@ -556,13 +550,14 @@
         generateLevel();
         updateUI();
 
-        // 顯示虛擬方向鍵
-        document.getElementById('mobile-controls').style.display = 'flex';
+        // 顯示邊緣觸控區域
+        document.getElementById('touch-zone-left').style.display = 'flex';
+        document.getElementById('touch-zone-right').style.display = 'flex';
         // 重置按鍵狀態防卡鍵
         keys.left = false;
         keys.right = false;
-        btnLeft.classList.remove('active');
-        btnRight.classList.remove('active');
+        zoneLeft.classList.remove('active');
+        zoneRight.classList.remove('active');
     }
 
     function generateLevel() {
@@ -1275,7 +1270,8 @@
         state = newState;
         stateTime = performance.now();
         if (newState === 'GAMEOVER' || newState === 'WIN' || newState === 'START') {
-            document.getElementById('mobile-controls').style.display = 'none';
+            document.getElementById('touch-zone-left').style.display = 'none';
+            document.getElementById('touch-zone-right').style.display = 'none';
             bgmActive = false; // 停止 BGM
         }
     }
@@ -1319,7 +1315,8 @@
 
     initGame();
     // 隱藏初始的控制器直到遊戲開始
-    document.getElementById('mobile-controls').style.display = 'none';
+    document.getElementById('touch-zone-left').style.display = 'none';
+    document.getElementById('touch-zone-right').style.display = 'none';
     draw();
 
 </script>
