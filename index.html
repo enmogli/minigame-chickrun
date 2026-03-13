@@ -214,11 +214,54 @@
 
     // 音效系統 (Web Audio API 8-bit 合成)
     let audioCtx;
+    
+    // 背景音樂 (BGM) 變數
+    let bgmActive = false;
+    let nextBgmTime = 0;
+    let bgmNoteIndex = 0;
+    const bgmNotes = [110.00, 110.00, 130.81, 110.00, 146.83, 110.00, 130.81, 123.47]; // 緊張感的小調音階 (A2, C3, D3, B2)
+
     function initAudio() {
         if (!audioCtx) {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    // 背景音樂調度函數
+    function manageBGM() {
+        if (!bgmActive || !audioCtx) return;
+        
+        // 預先排程接下來的音符
+        while (nextBgmTime < audioCtx.currentTime + 0.1) {
+            let freq = bgmNotes[bgmNoteIndex];
+            
+            // 偶爾加入一點高八度變化
+            if (Math.random() < 0.1) freq *= 2;
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square'; // 經典 8-bit 方波
+            osc.frequency.value = freq;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            // 緊湊的短促音
+            gain.gain.setValueAtTime(0.03, nextBgmTime); // BGM 音量調低避免蓋過音效
+            gain.gain.exponentialRampToValueAtTime(0.001, nextBgmTime + 0.1);
+            
+            osc.start(nextBgmTime);
+            osc.stop(nextBgmTime + 0.1);
+            
+            bgmNoteIndex = (bgmNoteIndex + 1) % bgmNotes.length;
+            
+            // 根據卷軸速度動態調整 BGM 節奏 (暴龍衝刺時會變快！)
+            let noteDuration = 0.15 - (currentScrollSpeed - 4) * 0.01;
+            if (bigDino && bigDino.state === 'charge') noteDuration *= 0.65; // 衝刺時節奏急促
+            
+            nextBgmTime += noteDuration;
+        }
+        requestAnimationFrame(manageBGM);
     }
 
     function playSound(type) {
@@ -261,7 +304,16 @@
             gain.gain.setValueAtTime(0.8, t);
             gain.gain.exponentialRampToValueAtTime(0.01, t + 1.5);
             osc.start(t); osc.stop(t + 1.5);
-        } 
+        }
+        else if (type === 'small_roar') {
+            // 小恐龍出現時的小小吼叫：高頻短促
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(350, t);
+            osc.frequency.exponentialRampToValueAtTime(80, t + 0.2);
+            gain.gain.setValueAtTime(0.15, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+            osc.start(t); osc.stop(t + 0.2);
+        }
         else if (type === 'jump') {
             // 彈簧跳躍：快速上升的頻率 (鋼琴刷上去感)
             osc.type = 'sine';
@@ -378,7 +430,7 @@
     // --- 觸控與滑鼠控制 (全螢幕跳躍) ---
     // 避免點擊到虛擬方向鍵時觸發跳躍
     function isEventOnControls(e) {
-        if (e.target.closest('#mobile-controls')) return true;
+        if (e.target && e.target.closest && e.target.closest('#mobile-controls')) return true;
         // 如果是觸控事件，檢查觸碰點是否在按鈕內
         if (e.touches) {
             for (let i = 0; i < e.touches.length; i++) {
@@ -554,7 +606,7 @@
                 objects.push({ type: 'platform', x: curX, y: platH, w: 120, h: 20 });
             } else {
                 // 地面上的小恐龍
-                objects.push({ type: 'smalldino', x: curX, y: groundY - 40, w: 40, h: 40, speed: 3 });
+                objects.push({ type: 'smalldino', x: curX, y: groundY - 40, w: 40, h: 40, speed: 3, hasRoared: false });
                 dinosSinceLastEgg++;
             }
         }
@@ -767,8 +819,15 @@
 
             let screenX = obj.x - worldX;
             
-            // 小恐龍移動
-            if(obj.type === 'smalldino') obj.x -= obj.speed; 
+            // 小恐龍移動與小吼叫判斷
+            if(obj.type === 'smalldino') {
+                obj.x -= obj.speed; 
+                // 當小恐龍進入畫面邊緣時，觸發小小吼叫聲
+                if (!obj.hasRoared && screenX < width && screenX > width - 100) {
+                    playSound('small_roar');
+                    obj.hasRoared = true;
+                }
+            }
 
             // 簡易 AABB 碰撞檢測
             let pRect = { x: player.x, y: player.y, w: player.w, h: player.h };
@@ -1217,6 +1276,7 @@
         stateTime = performance.now();
         if (newState === 'GAMEOVER' || newState === 'WIN' || newState === 'START') {
             document.getElementById('mobile-controls').style.display = 'none';
+            bgmActive = false; // 停止 BGM
         }
     }
 
@@ -1229,6 +1289,13 @@
         document.getElementById('win-screen').style.display = 'none';
         initGame();
         changeState('PLAYING');
+        
+        // 啟動背景音樂 (稍微延遲以錯開開場嘶吼聲)
+        bgmActive = true;
+        bgmNoteIndex = 0;
+        nextBgmTime = audioCtx.currentTime + 1.0; 
+        manageBGM();
+
         lastTime = performance.now();
         requestAnimationFrame(update);
     }
